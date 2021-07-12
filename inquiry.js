@@ -15,16 +15,11 @@ exports.run = run;
 
 return;
 
-let ctx = {
-    browser: undefined,
-    page: undefined,
-    occupied: false,
-    market: 'tools',
-    user: { name: "Jessica", id: "glittertools@glittergroupcn.com", pwd: "Songjianwei68970747" }
+let ctx = undefined;
+(async () => {
+    ctx = (await alibaba.getContexts(userName = "Jessica"))[0]
+})();
 
-    // market: 'beauty',
-    // user: { name: "Carrie", id: "eyelash@glittergroupcn.com", pwd: "Xujinna68970747" }
-};
 
 (async () => {
     await alibaba.openBrowser(ctx);
