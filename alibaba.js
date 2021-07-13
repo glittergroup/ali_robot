@@ -62,7 +62,7 @@ async function run(task, userName) {
         if (!(userName in queue)) {
             queue[userName] = []
         }
-        queue.push(task)
+        queue[userName].push(task)
         return
     }
 
@@ -86,12 +86,10 @@ async function run(task, userName) {
     } finally {
         ctx.occupied = undefined;
 
-        if (userName in queue) {
-            if (queue[userName].length > 0) {
-                task = queue[userName].shift();
-                console.log(`[ALIBABA]: found waitting task(${task.name}, ${userName}), run it soon!`)
-                await run(task, userName);
-            }
+        if (userName in queue && queue[userName].length > 0) {
+            task = queue[userName].shift();
+            console.log(`[ALIBABA]: found waitting task(${task.name}, ${userName}), run it soon!`)
+            await run(task, userName);
         }
     }
 }
