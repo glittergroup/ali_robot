@@ -78,11 +78,15 @@ async function filter(ctx) {
         return document.querySelector(selector).offsetParent == null
     }, {}, '#J-common-state-options li:nth-child(2)')
 
-    await ctx.page.click('#J-condition-mailable')
+    if (!await ctx.page.evaluate(() => document.querySelector('#J-condition-mailable').checked)) {
+        await ctx.page.click('#J-condition-mailable')
+    }
+
     await loading(ctx)
 }
 
 async function loading(ctx) {
+    await ctx.page.waitForTimeout(500)
     await ctx.page.waitForFunction((selector) => {
         let el = document.querySelector(selector)
         return el && el.offsetParent == null
@@ -326,6 +330,8 @@ async function find_recommended(ctx, visitor) {
     //     console.log(p.id, p.group)
     // }
     // console.log('------------------\n')
+
+    return recommended
 }
 
 async function selectProducts(page, recommended) {
@@ -347,8 +353,14 @@ async function selectProducts(page, recommended) {
 
         // select the product
         while (true) {
-            await iframe.waitForFunction(() => !document.querySelector('#container .next-loading-tip'))
-
+            await page.waitForFunction(() => {
+                let iframe = document.querySelector('.simple-content-iframe')
+                if (!iframe) {
+                    return false
+                }
+                return !iframe.contentDocument.body.querySelector('#container .next-loading-tip')
+            })
+            await iframe.waitForTimeout(300)
             let idx = await iframe.evaluate((product) => {
                 for (let [idx, div] of document.querySelectorAll('.basic div[role="gridcell"]').entries()) {
                     let href = div.querySelector('.popup-item-description a').getAttribute('href')
@@ -361,7 +373,7 @@ async function selectProducts(page, recommended) {
             }, product)
 
             if (idx) {
-                await iframe.waitForTimeout(300)
+                await iframe.waitForTimeout(400)
                 await iframe.click(`.basic div[role="gridcell"]:nth-child(${idx}) img`)
                 await iframe.waitForFunction(() => {
                     return !document.querySelector('button#confirm').hasAttribute('disabled')
@@ -398,31 +410,100 @@ async function selectProducts(page, recommended) {
                 div.querySelector('input[name="unitPrice"]').value = product.price[0]
             }
         }, product)
-
     }
-
 }
 
+function get_reply_message(user) {
+    return `Nice Day. 
+This is ${user.name}.
+Thanks for your visiting our website.
+
+Are you searching for a reliable false eyelash supplier? You know that in a deeply saturated eyelashes industry, it can be difficult to find good quality products with reasonable prices. Having understood the many struggles that comes with lashes industry, we have taken it upon ourselves to provide you with some of the greatest eyelashes on the market today. With decade professional experience, we have yet all kinds of eyelashes with good quality and resonable prices ready for you. 
+
+- Sample order is available, sent out in 2 days
+- Custom LOGO and private package is accepted
+- Quality defects or damaged during transportation, we would reissue new ones for free.
+
+Would you pls let me know your WhatsApp number? We would like to send our product catalog and price list to you. 
+
+Moreover, we are looking for strategic partners all over the world. If the total amount of your orders reaches a certain threshold, which is not hard to reach and you become our distributer, we will offer you very favorable prices. If you are interested, please contact us. 
+We hope you love and cherish these lashes and this cause as much as we do.
+
+Feel free to contact us on whatsapp +86 {whatsapp} or leave message here.
+
+Thank you!`
+}
 
 let occupied_vids = []
 
+
 async function mail(ctx, visitor) {
 
-    //todo
+    let recommended = await find_recommended(ctx, visitor)
+
     try {
-
+        await ctx.page.click(`#J-visitors-tbl-tbody tr.J-visitors-table-tr:nth-child(${visitor.idx}) span.mailable`)
         // business logic
+        await ctx.page.waitForFunction(() => {
+            for (let btn of document.querySelectorAll('.ui-window input[type="button"]:first-child')) {
+                if (btn.offsetParent) {
+                    btn.click()
+                    return true
+                }
+            }
+            return false
+        })
 
+        let page = (await ctx.browser.pages())[1]
+        // remove the useless row
+        await page.waitForFunction(() => {
+            let el = document.querySelector('.product-item .remove-item a')
+            return el && el.offsetParent !== null
+        })
+        await page.click('.product-item .remove-item a')
+
+        // set the title
+        await page.click('.promotion .ui2-combobox-trigger i')
+        await page.waitForFunction(() => {
+            for (let li of document.querySelectorAll('.ui2-popup-menu-list li a')) {
+                if (li.offsetParent !== null && li.textContent == "Hot products with competitive prices") {
+                    li.click()
+                    return true
+                }
+            }
+            return false
+        })
+
+        // chose the product
+        await selectProducts(page, recommended)
+
+        // fill reply message
+        let msg = get_reply_message(ctx.user)
+        await page.evaluate((message) => {
+            let textarea = document.querySelector('textarea.inquiry-content')
+            // console.log(textarea)
+            textarea.value = message
+        }, msg)
+
+        await page.click('div[data-role="leads-form-footer"] a[data-trigger="send-leads"]')
+        await page.waitForFunction(() => !!document.querySelector('i.ui2-icon-success'))
 
     } catch (err) {
         //todo: print err info to console
         //todo: remove vid from occupied_vids
+        console.log(err)
         let idx = occupied_vids.indexOf(visitor.id)
         if (idx != -1) {
             occupied_vids.splice(idx, 1)
         }
+    } finally {
+        let pages = await ctx.browser.pages()
+        if (pages.length === 2) {
+            await pages[1].close()
+        }
     }
 }
+
 
 async function run(ctx) {
     if (!(ctx.market in products)) {
@@ -440,29 +521,64 @@ async function run(ctx) {
     await filter(ctx)
     await loading(ctx)
 
-    while (true) {
+    let count = await ctx.page.evaluate(() => {
+        let el = document.querySelector('span.overview-total')
+        if (el && el.offsetParent !== null) {
+            return parseInt(el.textContent)
+        } else {
+            return -1
+        }
+    })
 
+    if (count <= 0) {
+        return
+    }
+
+    while (true) {
+        await ctx.page.waitForTimeout(500)
         // if there is no mailable visitor, exit
         if (await ctx.page.$eval('#J-visitors-tip-no-data', el => el.offsetParent !== null)) {
             break
         }
 
+        await ctx.page.waitForFunction(() => {
+            for (let span of document.querySelectorAll('td.td-operate>span')) {
+                if (!span.classList.contains('mailable')) {
+                    return false
+                }
+            }
+            return true
+        })
+
         let visitors = await find_visitors(ctx);
 
-        for (let visitor of visitors) {
+        for (let [_, visitor] of visitors.entries()) {
             console.log(visitor)
+            if (count === 0) {
+                break
+            }
 
-            if (visitor.id in occupied_vids) {
+            if (occupied_vids.indexOf(visitor.id) !== -1) {
                 continue
             }
 
             occupied_vids.push(visitor.id)
 
             await mail(ctx, visitor)
+
+            console.log(occupied_vids)
+            count--
+
+            // for test
+            // break
         }
 
         // for test
-        break
+        // break
+
+        if (count === 0) {
+            break
+        }
 
         if (visitors.length == 0) {
             break
@@ -541,159 +657,21 @@ let ctx = undefined;
 
 (async () => { await run(ctx); })();
 
-
-(async () => {
-
-})();
-
-
 (async () => { })();
 
 
 (async () => {
-    async function mail(ctx, visitor) {
-
-        let recommended = await find_recommended(ctx, visitor)
-
-        try {
-            await ctx.page.click(`#J-visitors-tbl-tbody tr.J-visitors-table-tr:nth-child(${visitor.idx}) span.mailable`)
-            // business logic
-            await ctx.page.waitForFunction(() => {
-                let result = false
-                for (let btn of document.querySelectorAll('.ui-window input[type="button"]:first-child')) {
-                    console.log('===', btn.offsetParent)
-                    if (btn.offsetParent !== 0) {
-                        btn.click()
-                        result = true
-                        break
-                    }
-                }
-                return result
-            })
-            await ctx.page.click('.ui-window input[type="button"]:first-child')[1]
-
-
-            let page = (await ctx.browser.pages())[1]
-            // remove the useless row
-            await page.waitForFunction(() => {
-                let el = document.querySelector('.product-item .remove-item a')
-                return el && el.offsetParent !== null
-            })
-            await page.click('.product-item .remove-item a')
-
-            // set the title
-            await page.click('.promotion .ui2-combobox-trigger i')
-            await page.waitForFunction(() => {
-                for (let li of document.querySelectorAll('.ui2-popup-menu-list li a')) {
-                    if (li.offsetParent !== null && li.textContent == "Hot products with competitive prices") {
-                        li.click()
-                        return true
-                    }
-                }
-                return false
-            })
-
-            // chose the product
-
-        } catch (err) {
-            //todo: print err info to console
-            //todo: remove vid from occupied_vids
-            console.log(err)
-            let pages = await ctx.browser.pages()
-            if (pages.length === 2) {
-                await pages[1].close()
-            }
-            let idx = occupied_vids.indexOf(visitor.id)
-            if (idx != -1) {
-                occupied_vids.splice(idx, 1)
-            }
-        }
-    }
 
     let visitors = await find_visitors(ctx)
 
     let visitor = visitors[3]
-    console.log(visitor)
     await mail(ctx, visitor)
 
 })();
 
+
 // choose products
 (async () => {
-    async function selectProducts(page, recommended) {
-
-        for (let product of recommended) {
-
-            await page.click('.trigger-container a[data-role="chooseProduct"]')
-            await page.waitForSelector('iframe.simple-content-iframe')
-
-            let elementHandle = await page.$('iframe.simple-content-iframe');
-            let iframe = await elementHandle.contentFrame();
-            await iframe.waitForFunction(() => !document.querySelector('#container .next-loading-tip'))
-
-            await iframe.waitForSelector('input[role="searchbox"]', { visible: true })
-
-            let input_search = await iframe.$('input[role="searchbox"]')
-            await input_search.type(product.title)
-            await iframe.click('i[role="button"]')
-
-            // select the product
-            while (true) {
-                await iframe.waitForFunction(() => !document.querySelector('#container .next-loading-tip'))
-
-                let idx = await iframe.evaluate((product) => {
-                    for (let [idx, div] of document.querySelectorAll('.basic div[role="gridcell"]').entries()) {
-                        let href = div.querySelector('.popup-item-description a').getAttribute('href')
-                        if (href.includes(product.id)) {
-                            // div.querySelector('.popup-item-img-wrapper').click()
-                            return idx + 1
-                        }
-                    }
-                    return null
-                }, product)
-
-                if (idx) {
-                    await iframe.waitForTimeout(300)
-                    await iframe.click(`.basic div[role="gridcell"]:nth-child(${idx}) img`)
-                    await iframe.waitForFunction(() => {
-                        return !document.querySelector('button#confirm').hasAttribute('disabled')
-                    })
-                    await iframe.click('button#confirm')
-                    break
-                }
-
-                let has_next_page = await iframe.evaluate(() => {
-                    let btn_next = document.querySelector('button.next-next')
-                    return !btn_next.hasAttribute('disabled')
-                })
-
-                if (has_next_page) {
-                    await iframe.click('button.next-next')
-                } else {
-                    await page.click('a.ui-window-close')
-                    await page.waitForFunction(() => {
-                        return !document.querySelector('iframe.simple-content-iframe')
-                    })
-                    break
-                }
-            }
-
-            await page.evaluate((product) => {
-                for (let div of document.querySelectorAll('.product-item')) {
-                    let href = div.querySelector('.product-info a').getAttribute('href')
-
-                    if (!href.includes(product.id)) {
-                        continue
-                    }
-
-                    div.querySelector('input.quantity-input').value = '1'
-                    div.querySelector('input[name="unitPrice"]').value = product.price[0]
-                }
-            }, product)
-
-        }
-
-    }
 
 
 
@@ -726,29 +704,9 @@ let ctx = undefined;
 
 
 
-(async () => {
-    let page = (await ctx.browser.pages())[1]
-    let recommended = []
-    recommended.push(products[ctx.market]['62592058203'])
-    recommended.push(products[ctx.market]['1600239313005'])
-    recommended.push(products[ctx.market]['60799648950'])
-    recommended.push(products[ctx.market]['62590927575'])
-    recommended.push(products[ctx.market]['60615788902'])
-
-
-
-    await iframe.waitForFunction(() => !document.querySelector('#container .next-loading-tip'))
-
-})();
+(async () => { await run(ctx); })();
 
 (async () => {
-    let page = (await ctx.browser.pages())[1]
-    let recommended = []
-    recommended.push(products[ctx.market]['62592058203'])
-    recommended.push(products[ctx.market]['1600239313005'])
-    recommended.push(products[ctx.market]['60799648950'])
-    recommended.push(products[ctx.market]['62590927575'])
-    recommended.push(products[ctx.market]['60615788902'])
 
 
 
@@ -756,10 +714,16 @@ let ctx = undefined;
 
 (async () => {
 
-    let page = (await ctx.browser.pages())[1]
-    let elementHandle = await page.$('iframe.simple-content-iframe');
-    let iframe = await elementHandle.contentFrame();
+
+    await filter(ctx)
+})();
+
+(async () => {
+    await filter(ctx)
+    await loading(ctx)
 
 
+
+    console.log(count)
 
 })();
