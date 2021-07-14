@@ -35,7 +35,8 @@ async function findAllProducts(ctx) {
                 let product = {}
                 product['title'] = div.querySelector('div.product-subject a').getAttribute('title')
                 product['href'] = div.querySelector('div.product-subject a').getAttribute('href')
-                product['model'] = div.querySelector('span.product-model').textContent.trim()
+                let span = div.querySelector('span.product-model')
+                product['model'] = span ? span.textContent.trim() : ''
                 product['group'] = div.querySelector('span.group-name').textContent.split(':')[1].trim().split('>')
                 product['id'] = div.querySelector('div.product-id').textContent.split(':')[1].trim()
                 product['price'] = div.querySelector('div.next-col:nth-child(4)').textContent.split(' - ')
@@ -53,7 +54,8 @@ async function findAllProducts(ctx) {
 
         for (let product of results) {
             for (let [idx, group] of product.group.entries()) {
-                product.group[idx] = group.match(/[A-Za-z ]+/)[0]
+                let parts = group.split('-')
+                product.group[idx] = parts.length === 2 ? parts[1].trim() : parts[0].trim()
             }
             products[product.id] = product
         }
@@ -67,7 +69,6 @@ async function findAllProducts(ctx) {
     console.log(`${Object.keys(products).length} products were found!`)
     return products
 }
-
 
 
 async function findAllProductGroups(ctx) {
@@ -155,7 +156,10 @@ async function findAllProductGroups(ctx) {
             }
 
             let group1 = { 'level': 1, 'children': [], 'ancestor': [] }
-            group1['name'] = div1.querySelector('.group-name-level-1').textContent.match(/[A-Za-z ]+/)[0]
+            group1['name'] = div1.querySelector('td.col-group-name').getAttribute('title')
+            if (group1['name'].includes('-')) {
+                group1['name'] = group1['name'].split('-')[1].trim()
+            }
             group1['id'] = div1.querySelector('span.product-count').getAttribute('id').match(/\d+/)[0]
             groups[group1.id] = group1
             groups[group1.name] = group1
@@ -169,7 +173,11 @@ async function findAllProductGroups(ctx) {
                 }
 
                 let group2 = { 'level': 2, 'children': [], 'ancestor': [group1.id] }
-                group2['name'] = div2.querySelector('.group-name-level-2').textContent.match(/[A-Za-z ]+/)[0]
+                group2['name'] = div2.querySelector('td.col-group-name').getAttribute('title')
+                if (group2['name'].includes('-')) {
+                    group2['name'] = group2['name'].split('-')[1].trim()
+                }
+
                 group2['id'] = div2.querySelector('span.product-count').getAttribute('id').match(/\d+/)[0]
                 groups[group2.id] = group2
                 group1.children.push(group2)
@@ -184,7 +192,10 @@ async function findAllProductGroups(ctx) {
                     }
 
                     let group3 = { 'level': 3, 'children': [], 'ancestor': [group1.id, group2.id] }
-                    group3['name'] = div3.querySelector('.group-name-level-3').textContent.match(/[A-Za-z ]+/)[0]
+                    group3['name'] = div3.querySelector('td.col-group-name').getAttribute('title')
+                    if (group3['name'].includes('-')) {
+                        group3['name'] = group3['name'].split('-')[1].trim()
+                    }
                     group3['id'] = div3.querySelector('span.product-count').getAttribute('id').match(/\d+/)[0]
                     groups[group3.id] = group3
                     group2.children.push(group3)
@@ -213,11 +224,11 @@ return;
 
 let ctx = undefined;
 (async () => {
-    ctx = (await alibaba.getContexts(userName = "Jessica"))[0]
+    ctx = (await alibaba.getContexts(userName = "Carrie"))[0]
 })();
 
 (async () => {
-    // await alibaba.openBrowser(ctx);
+    await alibaba.openBrowser(ctx);
     await ctx.page.goto(
         target_url,
         { waitUntil: 'networkidle2' }
@@ -237,7 +248,7 @@ let ctx = undefined;
 (async () => {
     let products = await findAllProducts(ctx);
     fs.writeFileSync(`./storage/${ctx.market}/products.json`, JSON.stringify(products, null, 2))
-    // console.log(products)
+    // console.log(products.length)
 })();
 
 
@@ -245,5 +256,5 @@ let ctx = undefined;
 (async () => {
     let productGroups = await findAllProductGroups(ctx);
     fs.writeFileSync(`./storage/${ctx.market}/product_groups.json`, JSON.stringify(productGroups, null, 2))
-    // console.log(productGroups)
+    console.log(productGroups)
 })();

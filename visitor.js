@@ -3,6 +3,8 @@ const fs = require('fs')
 
 
 let target_url = 'https://data.alibaba.com/marketing/visitor';
+let occupied_vids = []
+
 const products = {};
 const product_groups = {}
 const recommendations = {}
@@ -26,9 +28,12 @@ function load_recommendations(ctx) {
     }
 
     for (let [pid, product] of Object.entries(products[ctx.market])) {
-        let model = product['model']
 
-        if (!model.endsWith('789')) {
+        if (product.status.includes('已下架')) {
+            continue
+        }
+
+        if (!product.model.endsWith('789')) {
             continue
         }
 
@@ -52,7 +57,7 @@ function load_recommendations(ctx) {
             // console.log('\t', g)
 
             recommendations[ctx.market][owner][g].sort((a, b) => {
-                // console.log(a.group[0], b.group[0])
+                // console.log(product_groups[ctx.market].keys(), a.group[0], b.group[0])
                 let groups = product_groups[ctx.market][a.group[0]].children.map(x => x.name)
 
                 let idx_a = groups.indexOf(a.group[1])
@@ -274,16 +279,21 @@ async function find_recommended(ctx, visitor) {
 
     let groups = gids.map(gid => product_groups[ctx.market][gid].name)
 
-    // console.log(pids, gids, groups ? groups : [])
-    // for (let pid of pids) {
-    //     console.log(pid, products[ctx.market][pid].group)
-    // }
+    console.log(pids, gids, groups ? groups : [])
+    for (let pid of pids) {
+        console.log(pid, products[ctx.market][pid].group)
+    }
 
     let recommended = []
 
     for (let pid of pids) {
 
         let product = products[ctx.market][pid]
+
+        if (!(product.group[0] in recommendations[ctx.market][ctx.user.name])) {
+            recommended.push(product)
+            continue
+        }
 
         for (let p of recommendations[ctx.market][ctx.user.name][product.group[0]]) {
             if (p.group[1] === product.group[1]) {
@@ -433,8 +443,6 @@ Feel free to contact us on whatsapp +86 {whatsapp} or leave message here.
 
 Thank you!`
 }
-
-let occupied_vids = []
 
 
 async function mail(ctx, visitor) {
@@ -620,7 +628,7 @@ return;
 
 let ctx = undefined;
 (async () => {
-    ctx = (await alibaba.getContexts(userName = "Jessica"))[0]
+    ctx = (await alibaba.getContexts(userName = "Carrie"))[0]
 })();
 
 (async () => {
@@ -646,11 +654,11 @@ let ctx = undefined;
 })();
 
 (async () => {
-    // await ctx.page.goto(
-    //     target_url,
-    //     { waitUntil: 'networkidle2' }
-    // );
-    await alibaba.login(ctx);
+    await ctx.page.goto(
+        target_url,
+        { waitUntil: 'networkidle2' }
+    );
+    // await alibaba.login(ctx);
 })();
 
 (async () => { await alibaba.login(ctx); })();
@@ -658,16 +666,6 @@ let ctx = undefined;
 (async () => { await run(ctx); })();
 
 (async () => { })();
-
-
-(async () => {
-
-    let visitors = await find_visitors(ctx)
-
-    let visitor = visitors[3]
-    await mail(ctx, visitor)
-
-})();
 
 
 // choose products
@@ -706,24 +704,20 @@ let ctx = undefined;
 
 (async () => { await run(ctx); })();
 
+(async () => { await filter(ctx) })();
+
+
+
+
+
+
+
+//.editor
 (async () => {
 
+    let visitors = await find_visitors(ctx)
+    let visitor = visitors[0]
 
-
-})();
-
-(async () => {
-
-
-    await filter(ctx)
-})();
-
-(async () => {
-    await filter(ctx)
-    await loading(ctx)
-
-
-
-    console.log(count)
-
+    let recommended = await find_recommended(ctx, visitor)
+    console.log(recommended)
 })();

@@ -22,7 +22,7 @@ for (let name in markets) {
     }
 }
 
-function schedule(task, user_name, start = "00:00:00", end = "24:00:00", interval = 3600000) {
+function schedule(task, user_name, start = "00:00:00", end = "23:59:59", interval = 3600000) {
 
     let date = moment().format().split('T')[0]
     let start_time = moment(`${date}T${start}+08:00`)
@@ -66,3 +66,5 @@ function schedule(task, user_name, start = "00:00:00", end = "24:00:00", interva
 
 schedule(visitor, 'Jessica', start = "09:55:00", end = "12:06:00", interval = 2 * 60000);
 schedule(visitor, 'Robin', start = "09:57:30", end = "12:03:00", interval = 2 * 60000);
+
+schedule(visitor, 'Carrie', start = "09:20:30", end = "23:59:59", interval = 2 * 60000);
