@@ -269,7 +269,7 @@ async function find_recommended(ctx, visitor) {
 
         // console.log(pv.href)
         // console.log(pid, gid)
-        if (pid && pids.indexOf(pid) === -1) {
+        if (pid && pid in products[ctx.market] && pids.indexOf(pid) === -1) {
             pids.push(pid)
         }
         if (gid && gids.indexOf(gid) === -1) {
@@ -306,7 +306,13 @@ async function find_recommended(ctx, visitor) {
         }
     }
 
+    let loopCount = 100
     while (groups.length > 0 && recommended.length < 5) {
+        if (loopCount > 0) {
+            loopCount--
+        } else {
+            break
+        }
         for (let group of groups) {
             for (let p of recommendations[ctx.market][ctx.user.name][group]) {
                 if (recommended.indexOf(p) === -1) {
@@ -320,8 +326,13 @@ async function find_recommended(ctx, visitor) {
         }
     }
 
-
+    loopCount = 100
     while (groups.length === 0 && recommended.length < 5) {
+        if (loopCount > 0) {
+            loopCount--
+        } else {
+            break
+        }
         for (let group in recommendations[ctx.market][ctx.user.name]) {
             for (let p of recommendations[ctx.market][ctx.user.name][group]) {
                 if (recommended.indexOf(p) === -1) {
@@ -550,7 +561,7 @@ async function run(ctx) {
         }
 
         await ctx.page.waitForFunction(() => {
-            for (let span of document.querySelectorAll('td.td-operate>span')) {
+            for (let span of document.querySelectorAll('td.td-operate>span:first-child')) {
                 if (!span.classList.contains('mailable')) {
                     return false
                 }
@@ -588,7 +599,7 @@ async function run(ctx) {
             break
         }
 
-        if (visitors.length == 0) {
+        if (visitors.length - occupied_vids.length <= 0) {
             break
         } else {
             await ctx.page.click('#J-condition-mailable')
@@ -628,7 +639,8 @@ return;
 
 let ctx = undefined;
 (async () => {
-    ctx = (await alibaba.getContexts(userName = "Carrie"))[0]
+    // ctx = (await alibaba.getContexts(userName = "Carrie"))[0]
+    ctx = (await alibaba.getContexts(userName = "Jessica"))[0]
 })();
 
 (async () => {
@@ -662,6 +674,8 @@ let ctx = undefined;
 })();
 
 (async () => { await alibaba.login(ctx); })();
+
+(async () => { await filter(ctx) })();
 
 (async () => { await run(ctx); })();
 
@@ -702,9 +716,8 @@ let ctx = undefined;
 
 
 
-(async () => { await run(ctx); })();
 
-(async () => { await filter(ctx) })();
+
 
 
 
@@ -720,4 +733,11 @@ let ctx = undefined;
 
     let recommended = await find_recommended(ctx, visitor)
     console.log(recommended)
+})();
+
+
+
+(async () => {
+    // await ctx.page.mouse.move(350,500);
+    await ctx.page.mouse.click(575, 250)
 })();

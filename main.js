@@ -64,7 +64,7 @@ function schedule(task, user_name, start = "00:00:00", end = "23:59:59", interva
 
 
 
-schedule(visitor, 'Jessica', start = "09:55:00", end = "12:06:00", interval = 2 * 60000);
-schedule(visitor, 'Robin', start = "09:57:30", end = "12:03:00", interval = 2 * 60000);
+schedule(visitor, 'Jessica', start = "08:20:00", end = "08:50:00", interval = 5 * 60000);
+schedule(visitor, 'Robin', start = "09:57:30", end = "12:03:00", interval = 5 * 60000);
 
-schedule(visitor, 'Carrie', start = "09:20:30", end = "23:59:59", interval = 2 * 60000);
+schedule(visitor, 'Carrie', start = "08:20:30", end = "08:55:00", interval = 5 * 60000);
