@@ -4,8 +4,8 @@ const p4p = require('./p4p');
 const visitor = require('./visitor');
 const fs = require('fs')
 const moment = require('moment')
-
 const markets = JSON.parse(fs.readFileSync('./storage/markets.json'))
+
 for (let name in markets) {
     for (let account of markets[name].accounts) {
         account.name = account.fullName.split(' ')[0]
