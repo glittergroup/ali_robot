@@ -83,11 +83,12 @@ async function filter(ctx) {
         return document.querySelector(selector).offsetParent == null
     }, {}, '#J-common-state-options li:nth-child(2)')
 
+    await loading(ctx)
+
     if (!await ctx.page.evaluate(() => document.querySelector('#J-condition-mailable').checked)) {
         await ctx.page.click('#J-condition-mailable')
     }
 
-    await loading(ctx)
 }
 
 async function loading(ctx) {
@@ -638,9 +639,11 @@ exports.run = run;
 return;
 
 let ctx = undefined;
+let ctx_carrie = undefined;
+let ctx_jessica = undefined;
 (async () => {
-    // ctx = (await alibaba.getContexts(userName = "Carrie"))[0]
-    ctx = (await alibaba.getContexts(userName = "Jessica"))[0]
+    ctx_carrie = (await alibaba.getContexts(userName = "Carrie"))[0]
+    ctx_jessica = (await alibaba.getContexts(userName = "Jessica"))[0]
 })();
 
 (async () => {
@@ -662,7 +665,7 @@ let ctx = undefined;
         target_url,
         { waitUntil: 'networkidle2' }
     );
-    await alibaba.login(ctx);
+    // await alibaba.login(ctx);
 })();
 
 (async () => {
@@ -715,8 +718,30 @@ let ctx = undefined;
 })();
 
 
+//.editor
+(async () => {
+    async function filter(ctx) {
+        await ctx.page.click('#J-common-state-date .ui-dropdown-trigger')
+        await ctx.page.waitForFunction((selector) => {
+            let el = document.querySelector(selector)
+            return el && el.offsetParent != null
+        }, {}, '#J-common-state-options li:nth-child(2)')
 
+        await ctx.page.click('#J-common-state-options li:nth-child(2)')
+        await ctx.page.waitForFunction((selector) => {
+            return document.querySelector(selector).offsetParent == null
+        }, {}, '#J-common-state-options li:nth-child(2)')
 
+        await loading(ctx)
+
+        if (!await ctx.page.evaluate(() => document.querySelector('#J-condition-mailable').checked)) {
+            await ctx.page.click('#J-condition-mailable')
+        }
+
+    }
+
+    await filter(ctx)
+})();
 
 
 
