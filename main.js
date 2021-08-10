@@ -22,12 +22,11 @@ for (let name in markets) {
     }
 }
 
-function schedule(task, user_name, start = "00:00:00", end = "23:59:59", interval = 3600000) {
+function schedule(task, user_name, start_offset = 5, interval = 3600000) {
 
-    let date = moment().format().split('T')[0]
-    let start_time = moment(`${date}T${start}+08:00`)
-    let end_time = moment(`${date}T${end}+08:00`)
     let now = moment()
+    let start_time = moment(now + start_offset * 1000)
+    let end_time = moment(now + moment.duration(1410, 'minutes'))
 
     setTimeout(() => {
 
@@ -50,21 +49,23 @@ function schedule(task, user_name, start = "00:00:00", end = "23:59:59", interva
 
 //==================================================
 
-(async () => {
-    await alibaba.run(p4p, 'Carrie');
-})();
+// (async () => {
+//     await alibaba.run(p4p, 'Carrie');
+// })();
 
-(async () => {
-    await alibaba.run(p4p, 'Jessica');
-})();
+// (async () => {
+//     await alibaba.run(p4p, 'Jessica');
+// })();
 
-(async () => {
+// (async () => {
 
-})();
+// })();
 
 
 
-schedule(visitor, 'Jessica', start = "08:20:00", end = "08:50:00", interval = 5 * 60000);
-schedule(visitor, 'Robin', start = "09:57:30", end = "12:03:00", interval = 5 * 60000);
+schedule(visitor, 'Jessica', start_offset = 0, interval = 10 * 60000);
+schedule(visitor, 'Robin', start_offset = 180, interval = 10 * 60000);
+schedule(visitor, 'Carrie', start_offset = 360, interval = 10 * 60000);
 
-schedule(visitor, 'Carrie', start = "08:20:30", end = "08:55:00", interval = 5 * 60000);
+schedule(p4p, 'Jessica', start_offset = 240, interval = 8 * 60 * 60000);
+schedule(p4p, 'Carrie', start_offset = 540, interval = 8 * 60 * 60000);

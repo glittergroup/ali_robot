@@ -89,6 +89,7 @@ async function run(task, userName) {
         if (userName in queue && queue[userName].length > 0) {
             task = queue[userName].shift();
             console.log(`[ALIBABA]: found waitting task(${task.name}, ${userName}), run it soon!`)
+            await ctx.page.waitForTimeout(30000)
             await run(task, userName);
         }
     }

@@ -50,11 +50,11 @@ async function updatePrices(ctx, maxPrice, offset) {
 
         await ctx.page.click(`.bp-table-main-wraper>table.bp-table-main tr.selectable:nth-child(${tr_idx}) td:nth-child(5) a`);
         await loading(ctx);
-
         await ctx.page.evaluate((maxPrice, offset) => {
 
             let keyword = document.querySelector('span[data-role="span-keyword"]').textContent.trim()
             let minPrice = parseFloat(document.querySelector('span[data-role="span-baseprice"]').textContent.trim())
+
             let price = NaN
             let price_idx = 6
 
@@ -73,16 +73,17 @@ async function updatePrices(ctx, maxPrice, offset) {
                 price = minPrice
             } else {
                 price = price - offset
-                if (price < minPrice) {
-                    price = minPrice
-                }
             }
 
             if (price > maxPrice) {
                 price = maxPrice
             }
 
-            // console.log('[P4P]:', keyword, maxPrice, price_idx, price)
+            if (price < minPrice) {
+                price = minPrice
+            }
+
+            // console.log('[P4P]:', keyword, maxPrice, minPrice, price_idx, price)
             document.querySelector('.ui2-dialog input').value = price.toFixed(1)
 
             btn = document.querySelector('.ui2-dialog input[data-role="confirm"]')
@@ -100,7 +101,6 @@ async function updatePrices(ctx, maxPrice, offset) {
             },
             '.ui2-dialog input[data-role="confirm"]'
         );
-
     }
 }
 
@@ -128,6 +128,12 @@ async function run(ctx) {
         let maxPrice = parseFloat(group.substring(group.lastIndexOf('M') + 1, group.lastIndexOf('J'))) / 10
         let offset = parseFloat(group.substring(group.lastIndexOf('J') + 1, group.lastIndexOf('('))) / 10
 
+        // if (children_idx < 13) {
+        //     continue
+        // }
+
+
+
         console.log('[P4P]:', children_idx, name, keywords_count, maxPrice.toFixed(1), offset.toFixed(1))
 
         // /* test some keyword groups */
@@ -135,8 +141,14 @@ async function run(ctx) {
         //     continue
         // }
 
+        await ctx.page.evaluate(() => window.scrollTo({ top: 0 }))
         await ctx.page.click(`div.keyword-group .group-list li:nth-child(${children_idx})`);
         await loading(ctx);
+
+        // while ((await ctx.browser.pages()).length > 1) {
+        //     console.log('==================================================')
+        //     await (await ctx.browser.pages())[1].close()
+        // }
 
         // loop through all pages
         while (true) {
@@ -205,8 +217,99 @@ let ctx = undefined;
 
 (async () => { await run(ctx); })();
 
+(async () => { await run(ctx_carrie); })();
+(async () => { await run(ctx_jessica); })();
+
 (async () => { })();
 
-(async () => {
 
+(async () => {
+    async function run(ctx) {
+        await loading(ctx);
+        let keyword_groups = await ctx.page.$$eval(
+            'div.keyword-group .group-list li',
+            lis => lis.map(li => li.querySelector('span.name').textContent.trim())
+        )
+
+        // loop through all keyword groups
+        for (let [idx, group] of keyword_groups.entries()) {
+            let children_idx = idx + 1
+            let name = group.substring(0, group.lastIndexOf('M') == -1 ? group.lastIndexOf('(') : group.lastIndexOf('M'))
+            let keywords_count = parseInt(group.substring(group.lastIndexOf('(') + 1, group.lastIndexOf(')')))
+
+            if (keywords_count == 0) {
+                continue
+            }
+
+            if (group.lastIndexOf('M') == -1 && group.lastIndexOf('J') == -1) {
+                continue
+            }
+            // let maxPrice = 10
+            let maxPrice = parseFloat(group.substring(group.lastIndexOf('M') + 1, group.lastIndexOf('J'))) / 10
+            let offset = parseFloat(group.substring(group.lastIndexOf('J') + 1, group.lastIndexOf('('))) / 10
+
+            // if (children_idx < 13) {
+            //     continue
+            // }
+
+
+
+            console.log('[P4P]:', children_idx, name, keywords_count, maxPrice.toFixed(1), offset.toFixed(1))
+
+            // /* test some keyword groups */
+            // if ([1].indexOf(children_idx) == -1) {
+            //     continue
+            // }
+
+            await ctx.page.evaluate(() => window.scrollTo({ top: 0 }))
+            await ctx.page.click(`div.keyword-group .group-list li:nth-child(${children_idx})`);
+            await loading(ctx);
+
+            // while ((await ctx.browser.pages()).length > 1) {
+            //     console.log('==================================================')
+            //     await (await ctx.browser.pages())[1].close()
+            // }
+
+            // loop through all pages
+            while (true) {
+
+                await updatePrices(ctx, maxPrice, offset)
+
+                // next page
+                next_page_selector = 'div.bp-table-footer .next:not(.disable)'
+                let btn_next = await ctx.page.$(next_page_selector)
+                if (btn_next) {
+                    current_page_number = await ctx.page.$eval('.ui2-pagination .current', el => el.textContent.trim())
+
+                    await ctx.page.click(next_page_selector)
+
+                    await ctx.page.waitForFunction(
+                        (selector, current_page_number) => {
+                            return current_page_number != document.querySelector(selector).textContent.trim()
+                        },
+                        {
+                            polling: 200,
+                        },
+                        '.ui2-pagination .current', current_page_number
+                    );
+
+                } else {
+                    break
+                }
+            }
+
+            // await ctx.page.waitForTimeout(200)
+        }
+    }
+
+    await run(ctx)
+})();
+
+
+
+
+(async () => {
+    while ((await ctx.browser.pages()).length > 1) {
+        (await await ctx.browser.pages())[1].close()
+    }
 })();
