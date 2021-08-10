@@ -67,6 +67,7 @@ async function run(task, userName) {
     }
 
     try {
+        console.log(`[ALIBABA]: run task(${task.name}, ${userName})`)
         if (!ctx.browser) {
             await openBrowser(ctx);
         }
