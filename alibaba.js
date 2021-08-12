@@ -1,5 +1,6 @@
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const moment = require('moment')
 
 
 puppeteer.use(StealthPlugin());
@@ -58,7 +59,7 @@ async function run(task, userName) {
     }
 
     if (!ctx) {
-        console.log(`[ALIBABA]: No idle browsers, throw the task(${task.name}, ${userName}) in queue for later running!`)
+        console.log(`${moment().format('YYYY-MM-DD HH:mm:ss')} [ALIBABA]: No idle browsers, throw the task(${task.name}, ${userName}) in queue for later running!`)
         if (!(userName in queue)) {
             queue[userName] = []
         }
@@ -67,7 +68,7 @@ async function run(task, userName) {
     }
 
     try {
-        console.log(`[ALIBABA]: run task(${task.name}, ${userName})`)
+        console.log(`${moment().format('YYYY-MM-DD HH:mm:ss')} [ALIBABA]: run task(${task.name}, ${userName})`)
         if (!ctx.browser) {
             await openBrowser(ctx);
         }
@@ -81,7 +82,7 @@ async function run(task, userName) {
         await task.run(ctx)
 
     } catch (err) {
-        console.log('[ALIBABA]: task failed:', task.name, userName);
+        console.log(`${moment().format('YYYY - MM - DD HH: mm: ss')} [ALIBABA]: task failed:`, task.name, userName);
         console.error(err);
 
     } finally {
@@ -89,7 +90,7 @@ async function run(task, userName) {
 
         if (userName in queue && queue[userName].length > 0) {
             task = queue[userName].shift();
-            console.log(`[ALIBABA]: found waitting task(${task.name}, ${userName}), run it soon!`)
+            console.log(`${moment().format('YYYY-MM-DD HH:mm:ss')} [ALIBABA]: found waitting task(${task.name}, ${userName}), run it soon!`)
             await ctx.page.waitForTimeout(30000)
             await run(task, userName);
         }
