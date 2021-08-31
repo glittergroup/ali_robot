@@ -1,5 +1,6 @@
 const alibaba = require('./alibaba')
 const fs = require('fs')
+const markets = JSON.parse(fs.readFileSync('./storage/markets.json'))
 
 
 let target_url = 'https://data.alibaba.com/marketing/visitor';
@@ -7,6 +8,7 @@ let occupied_vids = []
 
 const products = {};
 const product_groups = {}
+const templates = {}
 const recommendations = {}
 
 function load_products(ctx) {
@@ -18,6 +20,12 @@ function load_products(ctx) {
 function load_product_groups(ctx) {
     if (!(ctx.market in product_groups)) {
         product_groups[ctx.market] = JSON.parse(fs.readFileSync(`./storage/${ctx.market}/product_groups.json`))
+    }
+}
+
+function load_templates(ctx) {
+    if (!(ctx.market in templates)) {
+        templates[ctx.market] = fs.readFileSync(`./storage/${ctx.market}/visitor.templ`, 'utf8')
     }
 }
 
@@ -33,7 +41,9 @@ function load_recommendations(ctx) {
             continue
         }
 
-        if (!product.model.endsWith('789')) {
+        if (!product.model.endsWith('789') && ctx.user.name !== 'Jessica') {
+            continue
+        } else if (!product.model.endsWith('123') && ctx.user.name === 'Jessica') {
             continue
         }
 
@@ -435,28 +445,6 @@ async function selectProducts(page, recommended) {
     }
 }
 
-function get_reply_message(user) {
-    return `Nice Day. 
-This is ${user.name}.
-Thanks for your visiting our website.
-
-Are you searching for a reliable false eyelash supplier? You know that in a deeply saturated eyelashes industry, it can be difficult to find good quality products with reasonable prices. Having understood the many struggles that comes with lashes industry, we have taken it upon ourselves to provide you with some of the greatest eyelashes on the market today. With decade professional experience, we have yet all kinds of eyelashes with good quality and resonable prices ready for you. 
-
-- Sample order is available, sent out in 2 days
-- Custom LOGO and private package is accepted
-- Quality defects or damaged during transportation, we would reissue new ones for free.
-
-Would you pls let me know your WhatsApp number? We would like to send our product catalog and price list to you. 
-
-Moreover, we are looking for strategic partners all over the world. If the total amount of your orders reaches a certain threshold, which is not hard to reach and you become our distributer, we will offer you very favorable prices. If you are interested, please contact us. 
-We hope you love and cherish these lashes and this cause as much as we do.
-
-Feel free to contact us on whatsapp +86 {whatsapp} or leave message here.
-
-Thank you!`
-}
-
-
 async function mail(ctx, visitor) {
 
     let recommended = await find_recommended(ctx, visitor)
@@ -498,7 +486,28 @@ async function mail(ctx, visitor) {
         await selectProducts(page, recommended)
 
         // fill reply message
-        let msg = get_reply_message(ctx.user)
+        let param = {}
+        let group = []
+        for (let product of recommended) {
+            if (group.indexOf(product.group[0]) === -1) {
+                group.push(product.group[0])
+            }
+        }
+        if (group.length === 1) {
+            group = group[0].toLowerCase()
+        } else {
+            group = 'default'
+        }
+        group = markets[ctx.market].product_groups[group]
+        param.product_group = group.fullName
+        param.product_lineup = group.lineup.map(x => ` - ${x}`).join('\r\n')
+
+        param.user_name = ctx.user.fullName.split(' ')[0]
+        param.whatsapp = ctx.user.mobile
+        param.email = ctx.user.id
+
+        let msg = eval('`' + templates[ctx.market] + '`')
+
         await page.evaluate((message) => {
             let textarea = document.querySelector('textarea.inquiry-content')
             // console.log(textarea)
@@ -532,7 +541,9 @@ async function run(ctx) {
     if (!(ctx.market in product_groups)) {
         load_product_groups(ctx);
     }
-
+    if (!(ctx.market in templates)) {
+        load_templates(ctx);
+    }
     if (!(ctx.market in recommendations)) {
         load_recommendations(ctx)
     }
@@ -641,9 +652,11 @@ return;
 let ctx = undefined;
 let ctx_carrie = undefined;
 let ctx_jessica = undefined;
+let ctx_candy = undefined;
 (async () => {
     ctx_carrie = (await alibaba.getContexts(userName = "Carrie"))[0]
     ctx_jessica = (await alibaba.getContexts(userName = "Jessica"))[0]
+    ctx_candy = (await alibaba.getContexts(userName = "Candy"))[0]
 })();
 
 (async () => {
@@ -653,6 +666,9 @@ let ctx_jessica = undefined;
     }
     if (!(ctx.market in product_groups)) {
         load_product_groups(ctx);
+    }
+    if (!(ctx.market in templates)) {
+        load_templates(ctx);
     }
     load_recommendations(ctx)
 
@@ -665,7 +681,7 @@ let ctx_jessica = undefined;
         target_url,
         { waitUntil: 'networkidle2' }
     );
-    // await alibaba.login(ctx);
+    await alibaba.login(ctx);
 })();
 
 (async () => {
@@ -751,10 +767,53 @@ let ctx_jessica = undefined;
 (async () => {
 
     let visitors = await find_visitors(ctx)
-    let visitor = visitors[0]
+    let visitor = visitors[6]
 
     let recommended = await find_recommended(ctx, visitor)
-    console.log(recommended)
+    console.log('-------------')
+
+    let group = []
+    for (let product of recommended) {
+        if (group.indexOf(product.group[0]) === -1) {
+            group.push(product.group[0])
+        }
+    }
+
+})();
+
+
+//.editor
+(async () => {
+
+    let groups = []
+    for (let pid in products[ctx.market]) {
+        let p = products[ctx.market][pid]
+        if (groups.indexOf(p.group[0]) === -1) {
+            groups.push(p.group[0])
+        }
+    }
+
+    group = groups.slice(1, 2)
+    console.log(groups, group)
+
+    let param = {}
+    param.user_name = ctx.user.fullName.split(' ')[0]
+    param.whatsapp = ctx.user.mobile
+    param.email = ctx.user.id
+
+    if (group.length === 1) {
+        group = group[0].toLowerCase()
+    } else {
+        group = 'default'
+    }
+    group = markets[ctx.market].product_groups[group]
+    param.product_group = group.fullName
+    param.product_lineup = group.lineup.map(x => ` - ${x}`).join('\r\n')
+
+    console.log(param)
+
+    message = eval('`' + templates[ctx.market] + '`')
+    console.log(message)
 })();
 
 
@@ -762,4 +821,15 @@ let ctx_jessica = undefined;
 (async () => {
     // await ctx.page.mouse.move(350,500);
     await ctx.page.mouse.click(575, 250)
+})();
+
+(() => {
+    function load_templates(ctx) {
+        if (!(ctx.market in templates)) {
+            templates[ctx.market] = fs.readFileSync(`./storage/${ctx.market}/visitor.templ`, 'utf8')
+        }
+    }
+    load_templates(ctx)
+
+
 })();
