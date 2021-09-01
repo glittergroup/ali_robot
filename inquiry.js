@@ -1,6 +1,7 @@
 const fs = require('fs');
 const moment = require('moment');
-const alibaba = require('./alibaba')
+const mailer = require('nodemailer');
+const alibaba = require('./alibaba');
 const markets = JSON.parse(fs.readFileSync('./storage/markets.json'))
 
 let target_url = 'https://message.alibaba.com/message/default.htm';
@@ -8,6 +9,7 @@ let target_url = 'https://message.alibaba.com/message/default.htm';
 const products = {};
 const templates = {};
 const catalog_sending_time_region = []
+const sent_emails = []
 
 
 function add_catalog_sending_time_region(time_region) {
@@ -22,11 +24,14 @@ function load_products(ctx) {
 
 function load_templates(ctx) {
     if (!(ctx.market in templates)) {
-        templates[ctx.market] = fs.readFileSync(`./storage/${ctx.market}/inquiry.templ`, 'utf8')
+        templates[ctx.market] = {
+            inquiry: fs.readFileSync(`./storage/${ctx.market}/inquiry.templ`, 'utf8'),
+            email: fs.readFileSync(`./storage/${ctx.market}/email.templ`, 'utf8')
+        }
     }
 }
 
-async function find_related_product_categories(page) {
+async function find_related_product_categories(ctx, page) {
     let group = undefined;
 
     // try to find out the inquired products
@@ -102,15 +107,28 @@ async function find_related_product_categories(page) {
     return group
 }
 
-async function find_buyer_name(page) {
+async function find_buyer(page) {
     return await page.evaluate(() => {
-        return document.querySelector('a.name-text').textContent.trim()
+        let buyer = {
+            name: document.querySelector('a.name-text').textContent.trim(),
+            email: undefined
+        }
+        for (let div of document.querySelectorAll('.base-information-form-item')) {
+            let label = div.querySelector('.base-information-form-item-label').textContent.trim();
+            let content = div.querySelector('.base-information-form-item-content').textContent.trim();
+            if (label == '邮箱' && content) {
+                buyer.email = content;
+                break
+            }
+        }
+
+        return buyer
     })
 }
 
-async function fill_message(page, buyer, product_group) {
+async function fill_message(ctx, page, buyer, product_group) {
     let param = {}
-    param.buyer = buyer.split(' ')[0]
+    param.buyer = buyer.name.split(' ')[0]
     param.user_name = ctx.user.name
     param.user_full_name = ctx.user.fullName
     param.product_group = product_group.fullName
@@ -119,17 +137,17 @@ async function fill_message(page, buyer, product_group) {
     param.email = ctx.user.id
     // console.log(param)
 
-    let message = eval('`' + templates[ctx.market] + '`')
-    // console.log(message)
+    let reply_message = eval('`' + templates[ctx.market].inquiry + '`')
+    // console.log(reply_message)
 
     await page.click('div.mock-reply div.holder')
     await page.waitForSelector('iframe#normal-im-send_ifr')
 
     let elementHandle = await page.$('iframe#normal-im-send_ifr');
     let iframe = await elementHandle.contentFrame();
-    await iframe.evaluate((msg) => {
-        document.querySelector('body').innerHTML = msg
-    }, message)
+    await iframe.evaluate((message) => {
+        document.querySelector('body').innerHTML = message
+    }, reply_message)
 
     await page.waitForTimeout(600)
     let rect = await page.evaluate(() => {
@@ -145,7 +163,7 @@ async function fill_message(page, buyer, product_group) {
     await page.waitForTimeout(1000)
 }
 
-async function attach_catalog(page, product_group) {
+async function attach_catalog(ctx, page, product_group) {
 
     let catalog_file = `./storage/${ctx.market}/catalogs/${product_group.catalogs[0]}`
 
@@ -159,6 +177,49 @@ async function attach_catalog(page, product_group) {
     }, { polling: 500 })
 
     // console.log('catalog upload finished!')
+}
+
+function send_email(ctx, buyer, product_group) {
+    let param = {}
+    param.buyer = buyer.name.split(' ')[0]
+    param.user_name = ctx.user.name
+    param.user_full_name = ctx.user.fullName
+    param.product_group = product_group.fullName
+    param.product_lineup = `${product_group.lineup.map(x => `<li>${x}</li>`).join('\r\n  ')}`
+    param.whatsapp = ctx.user.mobile
+    param.email = ctx.user.id
+    param.homepage = markets[ctx.market].homepage
+    // console.log(param)
+
+    let email_content = eval('`' + templates[ctx.market].email + '`')
+    // console.log(reply_message)
+
+    let transporter = mailer.createTransport({
+        "host": "smtp.qiye.aliyun.com",
+        "secureConnection": true, // use SSL, the port is 465
+        "port": 465,
+        // "port": 25,
+        "auth": {
+            "user": ctx.user.id,
+            "pass": ctx.user.email_pwd
+        }
+    });
+
+    let options = {
+        from: ctx.user.id,
+        to: buyer.email,
+        subject: ctx.market === 'Tools' ? 'Tanks for your inquiry on Alibaba.com' : 'Eyelash Product Catalog',
+        html: email_content
+    }
+
+    transporter.sendMail(options, function (error, info) {
+        if (error) {
+            console.log(error);
+        } else {
+            sent_emails.push(buyer.email)
+            console.log('Email sent: ' + info.response);
+        }
+    });
 
 }
 
@@ -178,17 +239,22 @@ async function reply(ctx, inquiry_id, with_catalog) {
         }, { polling: 500 })
 
 
-        let buyer = await find_buyer_name(page)
+        let buyer = await find_buyer(page)
         // console.log(buyer)
 
-        let product_group = await find_related_product_categories(page)
+        let product_group = await find_related_product_categories(ctx, page)
         // console.log(product_group)
 
-        await fill_message(page, buyer, product_group)
+        await fill_message(ctx, page, buyer, product_group)
 
         if (with_catalog) {
-            await attach_catalog(page, product_group)
+            await attach_catalog(ctx, page, product_group)
 
+        }
+
+        // prevent duplicate email sending
+        if (buyer.email && sent_emails.indexOf(buyer.email) !== -1) {
+            send_email(ctx, buyer, product_group)
         }
 
         await page.click('div.reply-wrapper div.send')
@@ -240,7 +306,7 @@ async function run(ctx) {
 
     for (let inquiry of inquiries) {
         if (inquiry.status === '新询盘' && inquiry.owner == ctx.user.fullName) {
-            await reply(ctx, inquiry_id, with_catalog)
+            await reply(ctx, inquiry.id, with_catalog)
         }
     }
 }
@@ -319,17 +385,10 @@ let ctx_robin = undefined;
 })();
 
 
-(async () => {
-
-})();
-
 // .editor
-(() => {
-})();
-
-
-
-
 (async () => {
-    await inquiry.run();
+
+
 })();
+
+

@@ -91,7 +91,7 @@ async function run(task, userName) {
         if (userName in queue && queue[userName].length > 0) {
             task = queue[userName].shift();
             console.log(`${moment().format('YYYY-MM-DD HH:mm:ss')} [ALIBABA]: found waitting task(${task.name}, ${userName}), run it soon!`)
-            await ctx.page.waitForTimeout(30000)
+            await ctx.page.waitForTimeout(5000)
             await run(task, userName);
         }
     }
