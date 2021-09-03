@@ -82,7 +82,7 @@ async function run(task, userName) {
         await task.run(ctx)
 
     } catch (err) {
-        console.log(`${moment().format('YYYY - MM - DD HH: mm: ss')} [ALIBABA]: task failed:`, task.name, userName);
+        console.log(`${moment().format('YYYY-MM-DD HH: mm: ss')} [ALIBABA]: task failed ======>>>>>>:`, task.name, userName);
         console.error(err);
 
     } finally {
