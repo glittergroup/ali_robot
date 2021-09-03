@@ -272,6 +272,13 @@ async function reply(ctx, inquiry_id, with_catalog) {
 }
 
 async function run(ctx) {
+    if (!(ctx.market in products)) {
+        load_products(ctx);
+    }
+
+    if (!(ctx.market in templates)) {
+        load_templates(ctx);
+    }
 
     let result = await ctx.page.waitForFunction((selector) => {
         let items = document.querySelectorAll(selector)
